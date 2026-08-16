@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import * as controller from '../controllers/client.controller';
+import { requireAuth } from '../middleware/auth.middleware';
+import { requireRole } from '../middleware/role.middleware';
+import { UserRole } from '@bltrack/shared';
+export const clientRouter = Router();
+clientRouter.use(requireAuth);
+clientRouter.get('/', controller.listClients);
+clientRouter.get('/:id', controller.getClient);
+clientRouter.post('/', requireRole(UserRole.ADMIN), controller.createClient);
+clientRouter.patch('/:id', requireRole(UserRole.ADMIN), controller.updateClient);

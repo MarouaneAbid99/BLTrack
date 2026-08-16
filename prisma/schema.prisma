@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum UserRole {
+  ADMIN
+  COURIER
+}
+
+enum PaymentMethod {
+  CASH
+  CHEQUE
+  ACCOUNT
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  fullName     String
+  passwordHash String
+  role         UserRole
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  bls          BL[]     @relation("CourierBLs")
+}
+
+model Client {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  isAccountClient Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  bls             BL[]
+}
+
+model BL {
+  id            String        @id @default(uuid())
+  blNumber      String        @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus
+  deliveryDate  DateTime
+  comments      String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  courier   User   @relation("CourierBLs", fields: [courierId], references: [id])
+  courierId String
+
+  @@index([blNumber])
+  @@index([clientId])
+  @@index([courierId])
+  @@index([deliveryDate])
+  @@index([paymentStatus])
+  @@index([paymentMethod])
+}
