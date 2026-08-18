@@ -2,12 +2,18 @@
   "name": "bltrack",
   "private": true,
   "description": "BLTrack Monorepo - Delivery and Payment Tracking System",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
-    "build:shared": "npm run build --workspace=packages/shared"
+    "build:shared": "npm run build --workspace=packages/shared",
+    "build:api": "npm run build:shared && npx prisma generate && npm run build --workspace=apps/api",
+    "start:api": "npm run start --workspace=apps/api",
+    "build:admin": "npm run build --workspace=apps/admin"
   },
   "devDependencies": {
     "prisma": "^7.9.1",

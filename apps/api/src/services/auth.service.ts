@@ -19,3 +19,12 @@ export const login = async (input: unknown) => {
   const safeUser = { id: user.id, username: user.username, fullName: user.fullName, role: user.role };
   return { user: safeUser, token: createToken({ id: user.id, username: user.username, role: user.role as UserRole }) };
 };
+
+export const getCurrentUser = async (id: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, username: true, fullName: true, role: true, isActive: true },
+  });
+  if (!user || !user.isActive) throw new AppError(401, 'UNAUTHORIZED', 'User is inactive or no longer exists');
+  return user;
+};

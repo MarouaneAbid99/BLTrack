@@ -17,4 +17,5 @@ Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./constants/enums"), exports);
 __exportStar(require("./types/auth"), exports);
 __exportStar(require("./types/bl"), exports);
+__exportStar(require("./types/report"), exports);
 __exportStar(require("./utils/validation"), exports);

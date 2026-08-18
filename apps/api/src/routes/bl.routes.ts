@@ -1,9 +1,15 @@
 import { Router } from 'express';
 import * as controller from '../controllers/bl.controller';
+import * as avoirController from '../controllers/avoir.controller';
+import * as paymentController from '../controllers/payment.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 export const blRouter = Router();
 blRouter.use(requireAuth);
 blRouter.get('/', controller.listBLs);
+blRouter.get('/summary', controller.summary);
+blRouter.get('/:id/avoirs', avoirController.listForBL);
+blRouter.post('/:id/avoirs', avoirController.createForBL);
+blRouter.put('/:id/payment', paymentController.putForBL);
 blRouter.get('/:id', controller.getBL);
 blRouter.post('/', controller.createBL);
 blRouter.patch('/:id', controller.updateBL);

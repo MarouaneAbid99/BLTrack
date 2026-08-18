@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PaymentStatus = exports.PaymentMethod = exports.UserRole = void 0;
+exports.LegacyPaymentStatus = exports.LegacyPaymentMethod = exports.PaymentStatus = exports.PaymentMethod = exports.UserRole = void 0;
 var UserRole;
 (function (UserRole) {
     UserRole["ADMIN"] = "ADMIN";
@@ -9,11 +9,22 @@ var UserRole;
 var PaymentMethod;
 (function (PaymentMethod) {
     PaymentMethod["CASH"] = "CASH";
-    PaymentMethod["CHEQUE"] = "CHEQUE";
-    PaymentMethod["ACCOUNT"] = "ACCOUNT"; // En compte (Client account, settled periodically)
+    PaymentMethod["CHEQUE"] = "CHEQUE"; // Chèque
 })(PaymentMethod || (exports.PaymentMethod = PaymentMethod = {}));
 var PaymentStatus;
 (function (PaymentStatus) {
-    PaymentStatus["PENDING"] = "PENDING";
-    PaymentStatus["PAID"] = "PAID"; // Payé
+    PaymentStatus["PAID"] = "PAID";
+    PaymentStatus["UNPAID"] = "UNPAID";
+    PaymentStatus["EN_COMPTE"] = "EN_COMPTE"; // Client en compte; this is not a payment method
 })(PaymentStatus || (exports.PaymentStatus = PaymentStatus = {}));
+var LegacyPaymentMethod;
+(function (LegacyPaymentMethod) {
+    LegacyPaymentMethod["CASH"] = "CASH";
+    LegacyPaymentMethod["CHEQUE"] = "CHEQUE";
+    LegacyPaymentMethod["ACCOUNT"] = "ACCOUNT";
+})(LegacyPaymentMethod || (exports.LegacyPaymentMethod = LegacyPaymentMethod = {}));
+var LegacyPaymentStatus;
+(function (LegacyPaymentStatus) {
+    LegacyPaymentStatus["PENDING"] = "PENDING";
+    LegacyPaymentStatus["PAID"] = "PAID";
+})(LegacyPaymentStatus || (exports.LegacyPaymentStatus = LegacyPaymentStatus = {}));

@@ -1,20 +1,14 @@
 import bcrypt from 'bcryptjs';
-import { createHmac } from 'crypto';
-import { PaymentMethod, PaymentStatus, UserRole } from '@bltrack/shared';
+import { LegacyPaymentMethod, LegacyPaymentStatus, PaymentMethod, PaymentStatus, UserRole } from '@bltrack/shared';
 import { prisma } from './utils/prisma';
-
-const deriveSeedPassword = (identity: string): string => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error('JWT_SECRET must be configured to run the development seed');
-  }
-  return createHmac('sha256', secret).update(`bltrack-development-seed:${identity}`).digest('base64url');
-};
+import { developmentSeedPassword } from './utils/development-seed';
+import { assertDevelopmentSeedAllowed } from './utils/database-safety';
 
 const hashSeedPassword = (identity: string): Promise<string> =>
-  bcrypt.hash(identity === 'dev-courier-a' ? 'BLTrackDev123!' : deriveSeedPassword(identity), 12);
+  bcrypt.hash(developmentSeedPassword(identity), 12);
 
 const seed = async (): Promise<void> => {
+  assertDevelopmentSeedAllowed();
   const [adminHash, courierAHash, courierBHash] = await Promise.all([
     hashSeedPassword('dev-admin'),
     hashSeedPassword('dev-courier-a'),
@@ -44,21 +38,39 @@ const seed = async (): Promise<void> => {
   ]);
 
   const deliveryDate = new Date('2026-08-09T10:00:00.000Z');
-  await Promise.all([
+  const [cashBL, chequeBL, accountBL] = await Promise.all([
     prisma.bL.upsert({
       where: { blNumber: 'DEV-BL-1001' },
-      update: { clientId: cashClient.id, courierId: courierA.id, amount: '1250.50', paymentMethod: PaymentMethod.CASH, paymentStatus: PaymentStatus.PAID, deliveryDate, comments: 'Fake cash delivery' },
-      create: { blNumber: 'DEV-BL-1001', clientId: cashClient.id, courierId: courierA.id, amount: '1250.50', paymentMethod: PaymentMethod.CASH, paymentStatus: PaymentStatus.PAID, deliveryDate, comments: 'Fake cash delivery' },
+      update: { clientId: cashClient.id, courierId: courierA.id, createdById: courierA.id, amount: '1250.50', blDate: deliveryDate, paymentMethod: LegacyPaymentMethod.CASH, paymentStatus: LegacyPaymentStatus.PAID, deliveryDate, comments: 'Fake cash delivery' },
+      create: { blNumber: 'DEV-BL-1001', clientId: cashClient.id, courierId: courierA.id, createdById: courierA.id, amount: '1250.50', blDate: deliveryDate, paymentMethod: LegacyPaymentMethod.CASH, paymentStatus: LegacyPaymentStatus.PAID, deliveryDate, comments: 'Fake cash delivery' },
     }),
     prisma.bL.upsert({
       where: { blNumber: 'DEV-BL-1002' },
-      update: { clientId: chequeClient.id, courierId: courierB.id, amount: '875.25', paymentMethod: PaymentMethod.CHEQUE, paymentStatus: PaymentStatus.PAID, deliveryDate, comments: 'Fake cheque delivery' },
-      create: { blNumber: 'DEV-BL-1002', clientId: chequeClient.id, courierId: courierB.id, amount: '875.25', paymentMethod: PaymentMethod.CHEQUE, paymentStatus: PaymentStatus.PAID, deliveryDate, comments: 'Fake cheque delivery' },
+      update: { clientId: chequeClient.id, courierId: courierB.id, createdById: courierB.id, amount: '875.25', blDate: deliveryDate, paymentMethod: LegacyPaymentMethod.CHEQUE, paymentStatus: LegacyPaymentStatus.PAID, deliveryDate, comments: 'Fake cheque delivery' },
+      create: { blNumber: 'DEV-BL-1002', clientId: chequeClient.id, courierId: courierB.id, createdById: courierB.id, amount: '875.25', blDate: deliveryDate, paymentMethod: LegacyPaymentMethod.CHEQUE, paymentStatus: LegacyPaymentStatus.PAID, deliveryDate, comments: 'Fake cheque delivery' },
     }),
     prisma.bL.upsert({
       where: { blNumber: 'DEV-BL-1003' },
-      update: { clientId: accountClient.id, courierId: courierA.id, amount: '640.00', paymentMethod: PaymentMethod.ACCOUNT, paymentStatus: PaymentStatus.PENDING, deliveryDate, comments: 'Fake account delivery' },
-      create: { blNumber: 'DEV-BL-1003', clientId: accountClient.id, courierId: courierA.id, amount: '640.00', paymentMethod: PaymentMethod.ACCOUNT, paymentStatus: PaymentStatus.PENDING, deliveryDate, comments: 'Fake account delivery' },
+      update: { clientId: accountClient.id, courierId: courierA.id, createdById: courierA.id, amount: '640.00', blDate: deliveryDate, paymentMethod: LegacyPaymentMethod.ACCOUNT, paymentStatus: LegacyPaymentStatus.PENDING, deliveryDate, comments: 'Fake account delivery' },
+      create: { blNumber: 'DEV-BL-1003', clientId: accountClient.id, courierId: courierA.id, createdById: courierA.id, amount: '640.00', blDate: deliveryDate, paymentMethod: LegacyPaymentMethod.ACCOUNT, paymentStatus: LegacyPaymentStatus.PENDING, deliveryDate, comments: 'Fake account delivery' },
+    }),
+  ]);
+
+  await Promise.all([
+    prisma.payment.upsert({
+      where: { blId: cashBL.id },
+      update: { amount: '1250.50', status: PaymentStatus.PAID, method: PaymentMethod.CASH, paidAt: deliveryDate, isLegacyMigrated: false },
+      create: { blId: cashBL.id, createdById: courierA.id, amount: '1250.50', status: PaymentStatus.PAID, method: PaymentMethod.CASH, paidAt: deliveryDate },
+    }),
+    prisma.payment.upsert({
+      where: { blId: chequeBL.id },
+      update: { amount: '875.25', status: PaymentStatus.PAID, method: PaymentMethod.CHEQUE, paidAt: deliveryDate, isLegacyMigrated: false },
+      create: { blId: chequeBL.id, createdById: courierB.id, amount: '875.25', status: PaymentStatus.PAID, method: PaymentMethod.CHEQUE, paidAt: deliveryDate },
+    }),
+    prisma.payment.upsert({
+      where: { blId: accountBL.id },
+      update: { amount: '640.00', status: PaymentStatus.EN_COMPTE, method: null, paidAt: null, isLegacyMigrated: false },
+      create: { blId: accountBL.id, createdById: courierA.id, amount: '640.00', status: PaymentStatus.EN_COMPTE },
     }),
   ]);
 

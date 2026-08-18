@@ -1,43 +1,72 @@
-# BLTrack
+# BLTrack V2
 
-BLTrack is a simple internal delivery and payment tracking system designed to streamline and digitize a company's delivery workflow.
+BLTrack V2 is a mobile-first delivery, credit-note, and payment tracking system for couriers and administrators. The courier application records delivery notes (BL), follows payment state, attaches avoirs, and produces activity reports while the API owns identity, timestamps, and financial rules.
 
-## Project Description
+OCR is not part of the production V2 release. BL and avoir data are entered manually until a later OCR phase is approved.
 
-Couriers currently record delivery details and payment information manually in paper notebooks. BLTrack replaces this manual process with an optimized digital workflow, giving admins real-time visibility over completed deliveries and collected payments.
+## Product capabilities
 
-For each delivered BL (Bon de Livraison), the courier records:
-- **BL Number**
-- **Client**
-- **Amount**
-- **Payment Status**
-- **Payment Method** (Cash / Espèces, Cheque, or Client Account / En compte)
+- **Authentication:** JWT login, active-user validation, and mobile session restoration through `GET /api/auth/me`.
+- **Clients:** active normal or account clients determine whether a new BL starts `UNPAID` or `EN_COMPTE`.
+- **BL:** manual creation, editing, list/search/filter, details, immutable IDs, and a business `blDate` distinct from record creation time.
+- **Payments:** `PAID`, `UNPAID`, and `EN_COMPTE`; paid records require `CASH` or `CHEQUE` and a server-owned payment timestamp.
+- **Avoirs:** positive stored amounts with BR reference and date; the UI displays them negatively.
+- **Accounting:** net amount is BL gross amount minus total avoir amount. Historical paid amounts and payment dates are preserved when later avoirs change the current net.
+- **Reports:** BL activity by BL date or payment date, and avoir activity by avoir date, using Africa/Casablanca calendar boundaries.
+- **Ownership:** courier identity comes from the authenticated request. Couriers see their own records; administrators retain broader authorized access.
 
-## Target Architecture
+## Architecture
 
-The project is structured as a monorepo containing:
-
-```
-bltrack/
-├── apps/
-│   ├── mobile/       # Courier mobile application (React Native / Expo / TS)
-│   ├── admin/        # Admin web application (React / Vite / TS / TailwindCSS)
-│   └── api/          # Backend API (Node.js / Express / TS / Prisma / MySQL)
-├── packages/
-│   └── shared/       # Shared TypeScript types and utilities
-├── prisma/           # Database schema and migrations
-├── docs/             # Project documentation
-└── README.md         # Monorepo root README
+```text
+apps/mobile      Expo / React Native courier application
+apps/admin       React / Vite administration application
+apps/api         Express / TypeScript API
+packages/shared  Shared V2 TypeScript contracts and validation
+prisma           MySQL/MariaDB schema and additive migrations
+docs             API, database, and deployment documentation
 ```
 
-## Tech Stack
+The API uses Prisma with the MariaDB driver adapter against MySQL or MariaDB. V1 BL payment columns remain temporarily available for compatibility while V2 uses dedicated `Payment` and `Avoir` records.
 
-- **Mobile:** React Native, Expo, TypeScript, TanStack Query
-- **Admin:** React, Vite, TypeScript, TailwindCSS, TanStack Query
-- **Backend:** Node.js, Express, TypeScript, Prisma, MySQL, JWT
+## Development setup
 
----
+Requirements:
 
-## Current Status
+- Node.js **22.13.1** (minimum `22.13.0`)
+- npm
+- MySQL or MariaDB
 
-- **Current Phase:** Phase 0 / Environment Setup (Completed)
+Install dependencies from the repository root:
+
+```powershell
+npm ci
+```
+
+Create local ignored environment files from:
+
+- `apps/api/.env.example`
+- `apps/mobile/.env.example`
+- `apps/admin/.env.example`
+
+Required API values are `DATABASE_URL` and `JWT_SECRET`. The mobile application requires `EXPO_PUBLIC_API_URL`; the admin requires `VITE_API_URL`. Never place database credentials, JWT secrets, signing keys, or private tokens in `EXPO_PUBLIC_*` variables.
+
+Common commands:
+
+```powershell
+npm run build:shared
+npm run build:api
+npm run build:admin
+npm run dev --workspace=@bltrack/api
+npm run start --workspace=mobile
+```
+
+Development seed and database-backed verification commands are manual operations. They must target an approved local/test database and refuse normal production execution.
+
+## Production deployment overview
+
+- `render.yaml` prepares the API for Render using Node 22.13.1, Render's `PORT`, host `0.0.0.0`, and `/health`.
+- `apps/admin/vercel.json` prepares the optional Vite admin deployment.
+- `apps/mobile/eas.json` defines an internal Android preview APK profile.
+- Production configuration is supplied through platform secrets; no production credentials belong in Git.
+
+Deployment does not run migrations or seed automatically. Production MySQL/MariaDB provisioning, backup, schema migration, preserved-data transfer, and post-migration validation require a separately approved plan. See [deployment documentation](docs/deployment.md).

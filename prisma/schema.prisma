@@ -12,27 +12,41 @@ enum UserRole {
   COURIER
 }
 
-enum PaymentMethod {
+enum LegacyPaymentMethod {
   CASH
   CHEQUE
   ACCOUNT
 }
 
-enum PaymentStatus {
+enum LegacyPaymentStatus {
   PENDING
   PAID
 }
 
+enum PaymentMethod {
+  CASH
+  CHEQUE
+}
+
+enum PaymentStatus {
+  PAID
+  UNPAID
+  EN_COMPTE
+}
+
 model User {
-  id           String   @id @default(uuid())
-  username     String   @unique
+  id           String    @id @default(uuid())
+  username     String    @unique
   fullName     String
   passwordHash String
   role         UserRole
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  bls          BL[]     @relation("CourierBLs")
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  bls          BL[]      @relation("CourierBLs")
+  createdBls   BL[]      @relation("CreatedBLs")
+  avoirs       Avoir[]   @relation("CreatedAvoirs")
+  payments     Payment[] @relation("CreatedPayments")
 }
 
 model Client {
@@ -43,18 +57,20 @@ model Client {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   bls             BL[]
+  avoirs          Avoir[]
 }
 
 model BL {
-  id            String        @id @default(uuid())
-  blNumber      String        @unique
-  amount        Decimal       @db.Decimal(10, 2)
-  paymentMethod PaymentMethod
-  paymentStatus PaymentStatus
+  id            String               @id @default(uuid())
+  blNumber      String               @unique
+  amount        Decimal              @db.Decimal(10, 2)
+  blDate        DateTime
+  paymentMethod LegacyPaymentMethod?
+  paymentStatus LegacyPaymentStatus
   deliveryDate  DateTime
   comments      String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 
   client   Client @relation(fields: [clientId], references: [id])
   clientId String
@@ -62,10 +78,63 @@ model BL {
   courier   User   @relation("CourierBLs", fields: [courierId], references: [id])
   courierId String
 
+  createdBy   User   @relation("CreatedBLs", fields: [createdById], references: [id])
+  createdById String
+
+  avoirs  Avoir[]
+  payment Payment?
+
   @@index([blNumber])
   @@index([clientId])
   @@index([courierId])
+  @@index([createdById])
+  @@index([blDate])
   @@index([deliveryDate])
   @@index([paymentStatus])
   @@index([paymentMethod])
+}
+
+model Avoir {
+  id          String   @id @default(uuid())
+  brReference String
+  avoirDate   DateTime
+  amount      Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bl   BL     @relation(fields: [blId], references: [id])
+  blId String
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  createdBy   User   @relation("CreatedAvoirs", fields: [createdById], references: [id])
+  createdById String
+
+  @@index([brReference])
+  @@index([blId])
+  @@index([clientId])
+  @@index([createdById])
+  @@index([avoirDate])
+}
+
+model Payment {
+  id               String         @id @default(uuid())
+  amount           Decimal        @db.Decimal(10, 2)
+  status           PaymentStatus
+  method           PaymentMethod?
+  paidAt           DateTime?
+  isLegacyMigrated Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  bl   BL     @relation(fields: [blId], references: [id])
+  blId String @unique
+
+  createdBy   User   @relation("CreatedPayments", fields: [createdById], references: [id])
+  createdById String
+
+  @@index([createdById])
+  @@index([status])
+  @@index([paidAt])
 }

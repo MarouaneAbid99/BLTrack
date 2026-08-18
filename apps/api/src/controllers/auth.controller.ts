@@ -4,3 +4,7 @@ import * as authService from '../services/auth.service';
 export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try { res.json(await authService.login(req.body)); } catch (error) { next(error); }
 };
+
+export const me = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try { res.json(await authService.getCurrentUser(req.auth!.id)); } catch (error) { next(error); }
+};

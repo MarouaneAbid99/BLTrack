@@ -1,14 +1,11 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "BLTrack",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "extra": {
-      "apiBaseUrl": "http://192.168.1.4:3001"
-    },
     "ios": {
       "supportsTablet": true
     },
@@ -24,6 +21,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

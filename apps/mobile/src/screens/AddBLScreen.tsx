@@ -1,139 +1,50 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Button, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useClients, useCreateBL } from '../services/queries';
-import { paymentOptions } from '../utils/constants';
-import { Client } from '../types';
 import { RootStackParamList } from '../navigation/RootNavigator';
-
-type AddBLScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AddBL'>;
-type AddBLScreenRouteProp = RouteProp<RootStackParamList, 'AddBL'>;
-
-type CreateBLPayload = {
-  blNumber: string;
-  clientId: string;
-  amount: number;
-  paymentMethod: string;
-  paymentStatus: string;
-  deliveryDate: string;
-  comments?: string;
-};
+import { useClients, useCreateAvoir, useCreateBL } from '../services/queries';
+import { apiDate, colors, formatDH, today } from '../utils/theme';
 
 export function AddBLScreen() {
-  const navigation = useNavigation<AddBLScreenNavigationProp>();
-  const route = useRoute<AddBLScreenRouteProp>();
-  const { data: clients, isLoading: clientsLoading } = useClients();
-  const { mutateAsync, isPending: isCreating } = useCreateBL();
-  const [blNumber, setBlNumber] = useState('');
-  const [clientId, setClientId] = useState(route.params?.clientId ?? '');
-  const [amount, setAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('CASH');
-  const [comments, setComments] = useState('');
-
-  const handleSubmit = async () => {
-    if (!blNumber.trim() || !clientId || !amount.trim()) {
-      Alert.alert('Erreur', 'Numéro BL, client et montant sont requis.');
-      return;
-    }
-    const value = Number(amount.replace(',', '.'));
-    if (Number.isNaN(value) || value <= 0) {
-      Alert.alert('Erreur', 'Le montant doit être un nombre supérieur à 0.');
-      return;
-    }
-
-    const payload: CreateBLPayload = {
-      blNumber: blNumber.trim(),
-      clientId,
-      amount: value,
-      paymentMethod,
-      paymentStatus: paymentMethod === 'ACCOUNT' ? 'PENDING' : 'PAID',
-      deliveryDate: new Date().toISOString(),
-      comments: comments.trim() || undefined,
-    };
-
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'AddBL'>>();
+  const clientsQuery = useClients(); const createBL = useCreateBL(); const createAvoir = useCreateAvoir();
+  const [blNumber, setBlNumber] = useState(''); const [clientId, setClientId] = useState(route.params?.clientId ?? '');
+  const [blDate, setBlDate] = useState(today()); const [amount, setAmount] = useState(''); const [comments, setComments] = useState('');
+  const [withAvoir, setWithAvoir] = useState(false); const [brReference, setBrReference] = useState(''); const [avoirDate, setAvoirDate] = useState(today()); const [avoirAmount, setAvoirAmount] = useState('');
+  const [error, setError] = useState('');
+  const clients = useMemo(() => (clientsQuery.data ?? []).filter((c) => c.isActive), [clientsQuery.data]);
+  const selectedClient = clients.find((c) => c.id === clientId);
+  const gross = Number(amount.replace(',', '.')) || 0; const credit = withAvoir ? Number(avoirAmount.replace(',', '.')) || 0 : 0;
+  const submit = async () => {
+    setError('');
+    if (!blNumber.trim() || !clientId || gross <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(blDate)) return setError('Numéro, client, date valide et montant positif sont requis.');
+    if (withAvoir && (!brReference.trim() || credit <= 0 || credit >= gross || !/^\d{4}-\d{2}-\d{2}$/.test(avoirDate))) return setError('L’avoir requiert une référence, une date et un montant positif strictement inférieur au BL.');
+    let bl;
     try {
-      await mutateAsync(payload);
-      Alert.alert('Succès', 'BL enregistré.', [{ text: 'OK', onPress: () => navigation.navigate('Home') }]);
-    } catch (error: unknown) {
-      const message = (error as any)?.response?.data?.error?.message;
-      if (typeof message === 'string' && message.includes('already exists')) {
-        Alert.alert('Erreur', 'Ce BL existe déjà.');
-      } else {
-        Alert.alert('Erreur', 'Impossible d’enregistrer le BL.');
-      }
+      bl = await createBL.mutateAsync({ blNumber: blNumber.trim(), clientId, amount: gross, blDate: apiDate(blDate), comments: comments.trim() || undefined, payment: { amount: gross, status: selectedClient?.isAccountClient ? 'EN_COMPTE' : 'UNPAID' } });
+    } catch (caught: unknown) { setError((caught as any)?.response?.data?.error?.message ?? 'Impossible d’enregistrer le BL.'); return; }
+    if (withAvoir) {
+      try { await createAvoir.mutateAsync({ blId: bl.id, payload: { brReference: brReference.trim(), avoirDate: apiDate(avoirDate), amount: credit } }); }
+      catch { Alert.alert('BL enregistré', 'L’avoir n’a pas pu être ajouté. Vous pouvez le reprendre depuis le détail du BL.'); navigation.replace('BLDetail', { blId: bl.id }); return; }
     }
+    navigation.replace('BLDetail', { blId: bl.id });
   };
-
-  const clientOptions = useMemo(() => clients?.filter((client) => client.isActive) ?? [], [clients]);
-
-  return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Ajouter un BL</Text>
-        <View style={styles.field}>
-          <Text style={styles.label}>Numéro BL</Text>
-          <TextInput value={blNumber} onChangeText={setBlNumber} style={styles.input} placeholder="Numéro BL" />
-        </View>
-        <View style={styles.field}>
-          <Text style={styles.label}>Client</Text>
-          {clientsLoading ? (
-            <ActivityIndicator />
-          ) : (
-            clientOptions.map((client) => (
-              <TouchableOpacity key={client.id} style={[styles.option, clientId === client.id && styles.optionSelected]} onPress={() => setClientId(client.id)}>
-                <Text style={styles.optionText}>{client.name}</Text>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-        <View style={styles.field}>
-          <Text style={styles.label}>Montant</Text>
-          <TextInput value={amount} onChangeText={setAmount} style={styles.input} keyboardType="decimal-pad" placeholder="Montant" />
-        </View>
-        <View style={styles.field}>
-          <Text style={styles.label}>Date de livraison</Text>
-          <Text style={styles.dateValue}>{new Date().toLocaleDateString()}</Text>
-        </View>
-        <View style={styles.field}>
-          <Text style={styles.label}>Mode de paiement</Text>
-          <View style={styles.paymentRow}>
-            {paymentOptions.map((option) => (
-              <TouchableOpacity key={option.value} style={[styles.paymentButton, paymentMethod === option.value && styles.paymentButtonActive]} onPress={() => setPaymentMethod(option.value)}>
-                <Text style={[styles.paymentText, paymentMethod === option.value && styles.paymentTextActive]}>{option.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-        <View style={styles.field}>
-          <Text style={styles.label}>Commentaire</Text>
-          <TextInput value={comments} onChangeText={setComments} style={[styles.input, styles.textArea]} placeholder="Optionnel" multiline numberOfLines={4} />
-        </View>
-        <View style={styles.buttonRow}>
-          <Button title="Annuler" onPress={() => navigation.goBack()} />
-          <Button title="Enregistrer" onPress={handleSubmit} disabled={isCreating} />
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+  const saving = createBL.isPending || createAvoir.isPending;
+  return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.back}>‹ Retour</Text></TouchableOpacity><Text style={styles.title}>Ajouter un BL</Text>
+    <Label text="Numéro BL"/><TextInput style={styles.input} value={blNumber} onChangeText={setBlNumber} placeholder="BL-000123" />
+    <Label text="Client"/>{clientsQuery.isLoading ? <ActivityIndicator /> : <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choices}>{clients.map((client) => <TouchableOpacity key={client.id} style={[styles.choice, clientId === client.id && styles.selected]} onPress={() => setClientId(client.id)}><Text style={[styles.choiceText, clientId === client.id && styles.selectedText]}>{client.name}{client.isAccountClient ? ' · compte' : ''}</Text></TouchableOpacity>)}</ScrollView>}
+    <Label text="Date BL (AAAA-MM-JJ)"/><TextInput style={styles.input} value={blDate} onChangeText={setBlDate} placeholder="2026-08-17" />
+    <Label text="Montant BL"/><TextInput style={styles.input} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" />
+    <Label text="Commentaire"/><TextInput style={[styles.input, styles.area]} value={comments} onChangeText={setComments} multiline placeholder="Optionnel" />
+    <TouchableOpacity style={styles.toggle} onPress={() => setWithAvoir(!withAvoir)}><Text style={styles.toggleText}>{withAvoir ? '☑' : '☐'} Ajouter un avoir avec ce BL</Text></TouchableOpacity>
+    {withAvoir ? <View style={styles.avoirBox}><Text style={styles.boxTitle}>Avoir</Text><Label text="Référence BR"/><TextInput style={styles.input} value={brReference} onChangeText={setBrReference}/><Label text="Date avoir"/><TextInput style={styles.input} value={avoirDate} onChangeText={setAvoirDate}/><Label text="Montant avoir (positif)"/><TextInput style={styles.input} value={avoirAmount} onChangeText={setAvoirAmount} keyboardType="decimal-pad"/></View> : null}
+    <View style={styles.total}><Text style={styles.totalLabel}>Net estimé</Text><Text style={styles.totalValue}>{formatDH(Math.max(0, gross - credit))}</Text></View>{error ? <Text style={styles.error}>{error}</Text> : null}
+    <TouchableOpacity style={[styles.submit, saving && styles.disabled]} disabled={saving} onPress={() => void submit()}><Text style={styles.submitText}>{saving ? 'Enregistrement…' : 'Enregistrer le BL'}</Text></TouchableOpacity>
+  </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  content: { padding: 16 },
-  title: { fontSize: 26, fontWeight: '700', marginBottom: 20 },
-  field: { marginBottom: 16 },
-  label: { marginBottom: 8, fontSize: 14, color: '#334155' },
-  input: { backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
-  dateValue: { backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16, color: '#334155' },
-  textArea: { minHeight: 100, textAlignVertical: 'top' },
-  option: { backgroundColor: '#ffffff', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#cbd5e1' },
-  optionSelected: { borderColor: '#0284c7', backgroundColor: '#e0f2fe' },
-  optionText: { fontSize: 16, color: '#334155' },
-  paymentRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  paymentButton: { flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderWidth: 1, alignItems: 'center' },
-  paymentButtonActive: { backgroundColor: '#0284c7', borderColor: '#0369a1' },
-  paymentText: { fontSize: 14, color: '#334155' },
-  paymentTextActive: { color: '#ffffff', fontWeight: '700' },
-  buttonRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 16 },
-});
+function Label({ text }: { text: string }) { return <Text style={styles.label}>{text}</Text>; }
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.background }, content: { padding: 18, paddingBottom: 40 }, back: { color: colors.blueDark, fontWeight: '800', fontSize: 16 }, title: { color: colors.text, fontWeight: '900', fontSize: 28, marginTop: 20, marginBottom: 10 }, demo: { color: colors.amber, backgroundColor: colors.amberSoft, padding: 12, borderRadius: 12, marginBottom: 8 }, label: { color: colors.text, fontWeight: '700', marginTop: 15, marginBottom: 7 }, input: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 14, color: colors.text }, area: { minHeight: 84, paddingTop: 13, textAlignVertical: 'top' }, choices: { gap: 8 }, choice: { borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 14, paddingVertical: 10 }, selected: { backgroundColor: colors.navy, borderColor: colors.navy }, choiceText: { color: colors.text, fontWeight: '700' }, selectedText: { color: 'white' }, toggle: { paddingVertical: 18 }, toggleText: { color: colors.blueDark, fontWeight: '800', fontSize: 15 }, avoirBox: { padding: 14, backgroundColor: colors.sky, borderRadius: 17 }, boxTitle: { color: colors.text, fontWeight: '900', fontSize: 18 }, total: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: colors.card, padding: 16, borderRadius: 16, marginTop: 18, borderWidth: 1, borderColor: colors.border }, totalLabel: { color: colors.muted }, totalValue: { color: colors.blueDark, fontWeight: '900', fontSize: 18 }, error: { color: colors.red, backgroundColor: colors.redSoft, padding: 12, borderRadius: 12, marginTop: 12 }, submit: { backgroundColor: colors.blueDark, minHeight: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 16, marginTop: 16 }, disabled: { opacity: .55 }, submitText: { color: 'white', fontWeight: '900', fontSize: 16 } });

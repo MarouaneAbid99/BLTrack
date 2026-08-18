@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import { restoreAuthenticatedUser } from './authRestore';
 
 const TOKEN_KEY = 'BLTRACK_MOBILE_TOKEN';
 let tokenChangeHandler: ((token: string | null) => void) | null = null;
@@ -70,13 +71,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
+    setTokenChangeHandler((nextToken) => {
+      setToken(nextToken);
+      if (!nextToken) setUser(null);
+    });
     const restore = async () => {
-      const savedToken = await getToken();
-      setToken(savedToken);
-      setLoading(false);
+      try {
+        const savedToken = await getToken();
+        if (!savedToken) return;
+        const restored = await restoreAuthenticatedUser(savedToken, async () => {
+          const { default: api } = await import('./api');
+          return (await api.get<AuthUser>('/api/auth/me')).data;
+        }, removeStoredToken);
+        if (active) { setToken(restored?.token ?? null); setUser(restored?.user ?? null); }
+      } catch {
+        if (active) { setToken(null); setUser(null); }
+      } finally {
+        if (active) setLoading(false);
+      }
     };
-    restore();
-    setTokenChangeHandler(setToken);
+    void restore();
+    return () => { active = false; };
   }, []);
 
   const login = async (tokenValue: string, authUser: AuthUser) => {

@@ -1,24 +1,15 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+import { mariaDbAdapterUrl } from './database-url';
 
 let client: PrismaClient | undefined;
 
 const getClient = (): PrismaClient => {
   if (!client) {
     const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL must be configured for database operations');
-    }
-    const database = new URL(databaseUrl);
+    if (!databaseUrl) throw new Error('DATABASE_URL must be configured for database operations');
     client = new PrismaClient({
-      adapter: new PrismaMariaDb({
-        host: database.hostname,
-        port: Number(database.port || 3306),
-        user: decodeURIComponent(database.username),
-        password: decodeURIComponent(database.password),
-        database: database.pathname.slice(1),
-        allowPublicKeyRetrieval: true,
-      }),
+      adapter: new PrismaMariaDb(mariaDbAdapterUrl(databaseUrl)),
     });
   }
   return client;

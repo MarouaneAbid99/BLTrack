@@ -1,60 +1,24 @@
-import { ActivityIndicator, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useQuery } from '@tanstack/react-query';
-import api from '../services/api';
 import { RootStackParamList } from '../navigation/RootNavigator';
-import { BLRecord } from '../types';
-
-type BLDetailRouteProp = RouteProp<RootStackParamList, 'BLDetail'>;
-
-type BLDetailNavigationProp = NativeStackNavigationProp<RootStackParamList, 'BLDetail'>;
+import { useBL } from '../services/queries';
+import { paymentLabel } from '../utils/domain';
+import { colors, formatDate, formatDH } from '../utils/theme';
 
 export function BLDetailScreen() {
-  const navigation = useNavigation<BLDetailNavigationProp>();
-  const route = useRoute<BLDetailRouteProp>();
-  const { data, isLoading } = useQuery<BLRecord, Error>({
-    queryKey: ['blDetail', route.params.blId],
-    queryFn: async () => {
-      const response = await api.get<BLRecord>(`/api/bls/${route.params.blId}`);
-      return response.data;
-    },
-  });
-
-  return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Détails du BL</Text>
-      {isLoading ? (
-        <ActivityIndicator />
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.label}>Numéro BL</Text>
-          <Text style={styles.value}>{data?.blNumber}</Text>
-          <Text style={styles.label}>Client</Text>
-          <Text style={styles.value}>{data?.client.name}</Text>
-          <Text style={styles.label}>Montant</Text>
-          <Text style={styles.value}>{data?.amount} €</Text>
-          <Text style={styles.label}>Mode de paiement</Text>
-          <Text style={styles.value}>{data?.paymentMethod}</Text>
-          <Text style={styles.label}>Statut</Text>
-          <Text style={styles.value}>{data?.paymentStatus}</Text>
-          <Text style={styles.label}>Date</Text>
-          <Text style={styles.value}>{data?.deliveryDate ? new Date(data.deliveryDate).toLocaleString() : '—'}</Text>
-          <Text style={styles.label}>Coursier</Text>
-          <Text style={styles.value}>{data?.courier.fullName}</Text>
-          <Text style={styles.label}>Commentaire</Text>
-          <Text style={styles.value}>{data?.comments || 'Aucun commentaire'}</Text>
-        </View>
-      )}
-      <Button title="Retour" onPress={() => navigation.goBack()} />
-    </ScrollView>
-  );
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>(); const route = useRoute<RouteProp<RootStackParamList, 'BLDetail'>>(); const query = useBL(route.params.blId); const bl = query.data; const status = bl?.payment?.status ?? 'UNPAID';
+  if (query.isLoading) return <SafeAreaView style={styles.center}><ActivityIndicator color={colors.blue}/></SafeAreaView>;
+  if (!bl) return <SafeAreaView style={styles.center}><Text style={styles.error}>BL introuvable.</Text><TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.link}>Retour</Text></TouchableOpacity></SafeAreaView>;
+  return <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={styles.content}>
+    <View style={styles.header}><TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.link}>‹ Retour</Text></TouchableOpacity><TouchableOpacity onPress={() => navigation.navigate('EditBL', { blId: bl.id })}><Text style={styles.link}>Modifier</Text></TouchableOpacity></View>
+    <Text style={styles.title}>{bl.blNumber}</Text><Text style={styles.client}>{bl.client.name}</Text><View style={styles.badge}><Text style={styles.badgeText}>{paymentLabel(status)}</Text></View>
+    <View style={styles.card}><Info label="Date BL" value={formatDate(bl.blDate)}/><Info label="Montant BL" value={formatDH(bl.amount)}/><Info label="Total avoir" value={Number(bl.totalAvoirAmount) ? `−${formatDH(bl.totalAvoirAmount)}` : formatDH(0)}/><View style={styles.separator}/><Info label="Montant net" value={formatDH(bl.netAmount)} strong/><Info label="Coursier" value={bl.createdBy.fullName}/>{bl.comments ? <Info label="Commentaire" value={bl.comments}/> : null}</View>
+    <Text style={styles.section}>Paiement</Text><View style={styles.card}><Info label="Statut" value={paymentLabel(status)}/><Info label="Mode" value={bl.payment?.method === 'CASH' ? 'Espèces' : bl.payment?.method === 'CHEQUE' ? 'Chèque' : '—'}/><Info label="Date paiement" value={formatDate(bl.payment?.paidAt)}/>{bl.paidAmount !== null ? <Info label="Montant payé" value={formatDH(bl.paidAmount)}/> : null}{bl.paymentDifferenceAmount !== null ? <Info label={Number(bl.paymentDifferenceAmount) > 0 ? 'Surpaiement' : 'Écart paiement / net'} value={`${Number(bl.paymentDifferenceAmount) > 0 ? '+' : ''}${formatDH(bl.paymentDifferenceAmount)}`}/> : null}{Number(bl.paymentDifferenceAmount) !== 0 ? <Text style={styles.historyNote}>Paiement historique conservé : le montant et la date ne sont pas modifiés par l’avoir.</Text> : status !== 'EN_COMPTE' ? <TouchableOpacity style={styles.primary} onPress={() => navigation.navigate('Payment', { blId: bl.id })}><Text style={styles.primaryText}>{status === 'PAID' ? 'Modifier le paiement' : 'Marquer comme payé'}</Text></TouchableOpacity> : <Text style={styles.accountNote}>Ce BL appartient à un client en compte.</Text>}</View>
+    <View style={styles.sectionRow}><Text style={styles.section}>Avoirs</Text><TouchableOpacity onPress={() => navigation.navigate('AvoirForm', { blId: bl.id })}><Text style={styles.link}>＋ Ajouter</Text></TouchableOpacity></View>
+    {bl.avoirs.length ? bl.avoirs.map((avoir) => <TouchableOpacity key={avoir.id} style={styles.avoir} onPress={() => navigation.navigate('AvoirForm', { blId: bl.id, avoir })}><View><Text style={styles.avoirRef}>{avoir.brReference}</Text><Text style={styles.muted}>{formatDate(avoir.avoirDate)}</Text></View><Text style={styles.avoirAmount}>−{formatDH(avoir.amount)}</Text></TouchableOpacity>) : <Text style={styles.empty}>Aucun avoir lié.</Text>}
+  </ScrollView></SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: '#f8fafc', minHeight: '100%' },
-  title: { fontSize: 26, fontWeight: '700', marginBottom: 20 },
-  card: { backgroundColor: '#ffffff', borderRadius: 16, padding: 16, marginBottom: 16 },
-  label: { fontSize: 14, color: '#64748b', marginTop: 12 },
-  value: { fontSize: 16, color: '#0f172a', marginTop: 4 },
-});
+function Info({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) { return <View style={styles.info}><Text style={styles.muted}>{label}</Text><Text style={[styles.value, strong && styles.strong]}>{value}</Text></View>; }
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.background }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }, content: { padding: 18, paddingBottom: 40 }, header: { flexDirection: 'row', justifyContent: 'space-between' }, link: { color: colors.blueDark, fontWeight: '900', fontSize: 16 }, title: { color: colors.text, fontSize: 29, fontWeight: '900', marginTop: 25 }, client: { color: colors.muted, fontSize: 17, marginTop: 4 }, badge: { alignSelf: 'flex-start', backgroundColor: colors.sky, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 6, marginTop: 11 }, badgeText: { color: colors.blueDark, fontWeight: '900', fontSize: 11 }, card: { backgroundColor: colors.card, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 16, marginTop: 15 }, info: { flexDirection: 'row', justifyContent: 'space-between', gap: 15, paddingVertical: 8 }, muted: { color: colors.muted }, value: { color: colors.text, fontWeight: '700', flexShrink: 1, textAlign: 'right' }, strong: { color: colors.blueDark, fontSize: 19, fontWeight: '900' }, separator: { borderTopWidth: 1, borderTopColor: colors.border, marginVertical: 6 }, section: { color: colors.text, fontWeight: '900', fontSize: 19, marginTop: 24 }, sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }, primary: { backgroundColor: colors.blueDark, minHeight: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginTop: 14 }, primaryText: { color: 'white', fontWeight: '900' }, historyNote: { color: colors.amber, backgroundColor: colors.amberSoft, borderRadius: 12, padding: 12, marginTop: 10, lineHeight: 18 }, accountNote: { color: colors.account, backgroundColor: '#F0EDFF', borderRadius: 12, padding: 12, marginTop: 10 }, avoir: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: colors.card, borderRadius: 15, borderWidth: 1, borderColor: colors.border, marginTop: 9 }, avoirRef: { color: colors.text, fontWeight: '800' }, avoirAmount: { color: colors.red, fontWeight: '900' }, empty: { color: colors.muted, textAlign: 'center', padding: 20 }, error: { color: colors.red, marginBottom: 10 } });

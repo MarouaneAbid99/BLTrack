@@ -5,10 +5,19 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
-    "start": "node --env-file=.env dist/server.js",
+    "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
     "seed": "ts-node src/seed.ts",
-    "verify:persistence": "ts-node src/persistence-check.ts"
+    "verify:persistence": "node --env-file=.env -r ts-node/register src/persistence-check.ts",
+    "test:migration": "node --env-file=.env --test -r ts-node/register src/tests/migration-verification.test.ts",
+    "test:security": "node --env-file=.env --test -r ts-node/register src/tests/ownership-security.test.ts",
+    "test:reports-auth": "node --env-file=.env --test -r ts-node/register src/tests/reports-auth.test.ts",
+    "test:phase2c": "node --env-file=.env --test -r ts-node/register src/tests/phase2c-acceptance.test.ts",
+    "test:runtime": "node --env-file=.env --test -r ts-node/register src/tests/phase2cc-runtime.test.ts",
+    "test:timezone": "node --env-file=.env --test -r ts-node/register src/tests/casablanca-time.test.ts src/tests/casablanca-report.test.ts",
+    "test:production-safety": "node --test -r ts-node/register src/tests/production-safety.test.ts",
+    "test:phase1": "npm run test:migration && npm run test:security",
+    "test:phase2a": "npm run test:security && npm run test:reports-auth"
   },
   "dependencies": {
     "@bltrack/shared": "*",

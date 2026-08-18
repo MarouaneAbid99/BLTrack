@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://127.0.0.1:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL?.trim().replace(/\/+$/, '');
+if (!API_BASE_URL) throw new Error('VITE_API_URL must be configured');
 const SESSION_KEY = 'BLTRACK_ADMIN_SESSION';
 
 export type AdminUser = { id: string; username: string; fullName: string; role: 'ADMIN' | 'COURIER' };

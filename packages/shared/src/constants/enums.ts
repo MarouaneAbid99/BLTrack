@@ -5,11 +5,22 @@ export enum UserRole {
 
 export enum PaymentMethod {
   CASH = 'CASH', // Espèces
-  CHEQUE = 'CHEQUE', // Chèque
-  ACCOUNT = 'ACCOUNT' // En compte (Client account, settled periodically)
+  CHEQUE = 'CHEQUE' // Chèque
 }
 
 export enum PaymentStatus {
-  PENDING = 'PENDING', // En attente
-  PAID = 'PAID' // Payé
+  PAID = 'PAID', // Payé
+  UNPAID = 'UNPAID', // Non payé
+  EN_COMPTE = 'EN_COMPTE' // Client en compte; this is not a payment method
+}
+
+export enum LegacyPaymentMethod {
+  CASH = 'CASH',
+  CHEQUE = 'CHEQUE',
+  ACCOUNT = 'ACCOUNT'
+}
+
+export enum LegacyPaymentStatus {
+  PENDING = 'PENDING',
+  PAID = 'PAID'
 }

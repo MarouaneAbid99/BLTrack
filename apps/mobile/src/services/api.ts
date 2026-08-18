@@ -1,12 +1,9 @@
-import Constants from 'expo-constants';
 import axios from 'axios';
 import { getToken, deleteToken } from './auth';
 
-const defaultApiBaseUrl = 'http://127.0.0.1:3001';
-const isAndroidDevice = Constants.platform?.android != null && Constants.isDevice;
-export const apiBaseUrl = isAndroidDevice
-  ? defaultApiBaseUrl
-  : Constants.expoConfig?.extra?.apiBaseUrl ?? defaultApiBaseUrl;
+const configuredApiBaseUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '');
+if (!configuredApiBaseUrl) throw new Error('EXPO_PUBLIC_API_URL must be configured');
+export const apiBaseUrl = configuredApiBaseUrl;
 
 const api = axios.create({
   baseURL: apiBaseUrl,

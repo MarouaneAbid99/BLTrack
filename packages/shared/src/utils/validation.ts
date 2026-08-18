@@ -1,4 +1,4 @@
-import { PaymentMethod, PaymentStatus } from '../constants/enums';
+import { LegacyPaymentMethod, LegacyPaymentStatus, PaymentMethod, PaymentStatus } from '../constants/enums';
 import { LoginRequest } from '../types/auth';
 import { CreateBLRequest } from '../types/bl';
 
@@ -41,8 +41,7 @@ export function validateCreateBLRequest(data: any): ValidationResult {
   const blNumber = data.blNumber?.trim();
   const clientId = data.clientId?.trim();
   const amount = Number(data.amount);
-  const paymentMethod = data.paymentMethod;
-  const paymentStatus = data.paymentStatus;
+  const blDate = data.blDate ?? data.deliveryDate;
 
   if (!blNumber) {
     errors.blNumber = 'BL number is required';
@@ -56,12 +55,28 @@ export function validateCreateBLRequest(data: any): ValidationResult {
     errors.amount = 'Amount must be a positive number';
   }
 
-  if (!paymentMethod || !Object.values(PaymentMethod).includes(paymentMethod)) {
-    errors.paymentMethod = `Payment method must be one of: ${Object.values(PaymentMethod).join(', ')}`;
+  if (typeof blDate !== 'string' || Number.isNaN(Date.parse(blDate))) {
+    errors.blDate = 'BL date must be a valid date';
   }
 
-  if (!paymentStatus || !Object.values(PaymentStatus).includes(paymentStatus)) {
-    errors.paymentStatus = `Payment status must be one of: ${Object.values(PaymentStatus).join(', ')}`;
+  if (data.payment !== undefined) {
+    const payment = data.payment;
+    if (!payment || typeof payment !== 'object' || Array.isArray(payment)) {
+      errors.payment = 'Payment must be an object';
+    } else {
+      const status = payment.status;
+      const method = payment.method ?? null;
+      if (!Object.values(PaymentStatus).includes(status)) errors.paymentStatus = 'Payment status is invalid';
+      if (Object.prototype.hasOwnProperty.call(payment, 'paidAt')) errors.paidAt = 'paidAt is server-owned';
+      if (status === PaymentStatus.PAID) {
+        if (!Object.values(PaymentMethod).includes(method)) errors.paymentMethod = 'Paid payments require CASH or CHEQUE';
+      } else if (method !== null) {
+        errors.payment = 'UNPAID and EN_COMPTE cannot have a method or paidAt';
+      }
+    }
+  } else if (data.paymentMethod !== undefined || data.paymentStatus !== undefined) {
+    if (!Object.values(LegacyPaymentMethod).includes(data.paymentMethod)) errors.paymentMethod = 'Legacy payment method is invalid';
+    if (!Object.values(LegacyPaymentStatus).includes(data.paymentStatus)) errors.paymentStatus = 'Legacy payment status is invalid';
   }
 
   return {
