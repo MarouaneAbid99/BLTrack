@@ -1,8 +1,8 @@
-import bcrypt from 'bcryptjs';
 import { UserRole, validateLoginRequest } from '@bltrack/shared';
 import { AppError } from '../middleware/error.middleware';
 import { prisma } from '../utils/prisma';
 import { createToken } from '../utils/jwt';
+import { verifyPassword } from '../utils/password';
 
 export const login = async (input: unknown) => {
   const validation = validateLoginRequest(input);
@@ -12,7 +12,7 @@ export const login = async (input: unknown) => {
 
   const { username, password } = input as { username: string; password: string };
   const user = await prisma.user.findUnique({ where: { username: username.trim() } });
-  if (!user || !user.isActive || !(await bcrypt.compare(password, user.passwordHash))) {
+  if (!user || !user.isActive || !(await verifyPassword(password, user.passwordHash))) {
     throw new AppError(401, 'UNAUTHORIZED', 'Invalid username or password');
   }
 

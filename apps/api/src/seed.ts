@@ -1,11 +1,11 @@
-import bcrypt from 'bcryptjs';
 import { LegacyPaymentMethod, LegacyPaymentStatus, PaymentMethod, PaymentStatus, UserRole } from '@bltrack/shared';
 import { prisma } from './utils/prisma';
 import { developmentSeedPassword } from './utils/development-seed';
 import { assertDevelopmentSeedAllowed } from './utils/database-safety';
+import { hashPassword } from './utils/password';
 
 const hashSeedPassword = (identity: string): Promise<string> =>
-  bcrypt.hash(developmentSeedPassword(identity), 12);
+  hashPassword(developmentSeedPassword(identity));
 
 const seed = async (): Promise<void> => {
   assertDevelopmentSeedAllowed();

@@ -13,6 +13,7 @@
     "build:shared": "npm run build --workspace=packages/shared",
     "build:api": "npm run build:shared && npx prisma generate && npm run build --workspace=apps/api",
     "start:api": "npm run start --workspace=apps/api",
+    "bootstrap:admin": "npm run bootstrap:admin --workspace=apps/api",
     "build:admin": "npm run build --workspace=apps/admin"
   },
   "devDependencies": {

@@ -23,3 +23,23 @@ export const assertPersistenceCheckAllowed = (): void =>
 
 export const assertDatabaseTestAllowed = (): void =>
   assertProductionTestOverride('Database-backed test');
+
+export const assertDedicatedTestDatabase = (): void => {
+  assertDatabaseTestAllowed();
+  if (process.env[DEDICATED_TEST_DATABASE_OVERRIDE] !== 'true') {
+    throw new Error(`Dedicated database test refused: ${DEDICATED_TEST_DATABASE_OVERRIDE}=true is required`);
+  }
+
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('Dedicated database test refused: DATABASE_URL is required');
+
+  let databaseName: string;
+  try {
+    databaseName = new URL(databaseUrl).pathname.slice(1);
+  } catch {
+    throw new Error('Dedicated database test refused: DATABASE_URL is invalid');
+  }
+  if (!/(^|[_-])test($|[_-])/i.test(databaseName)) {
+    throw new Error('Dedicated database test refused: database name must be explicitly marked as test');
+  }
+};

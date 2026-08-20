@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   assertDatabaseTestAllowed,
+  assertDedicatedTestDatabase,
   assertDevelopmentSeedAllowed,
   assertPersistenceCheckAllowed,
   DEDICATED_TEST_DATABASE_OVERRIDE,
@@ -38,6 +39,23 @@ test('dedicated test override applies to checks and tests but never to seed', ()
     assert.doesNotThrow(assertPersistenceCheckAllowed);
     assert.doesNotThrow(assertDatabaseTestAllowed);
     assert.throws(assertDevelopmentSeedAllowed, /Development seed refused/);
+  });
+});
+
+test('dedicated database tests require an explicitly test-marked database name', () => {
+  withEnvironment({
+    NODE_ENV: 'production',
+    [DEDICATED_TEST_DATABASE_OVERRIDE]: 'true',
+    DATABASE_URL: 'mysql://example.invalid/defaultdb',
+  }, () => {
+    assert.throws(assertDedicatedTestDatabase, /database name must be explicitly marked as test/);
+  });
+  withEnvironment({
+    NODE_ENV: 'production',
+    [DEDICATED_TEST_DATABASE_OVERRIDE]: 'true',
+    DATABASE_URL: 'mysql://example.invalid/bltrack_bootstrap_test',
+  }, () => {
+    assert.doesNotThrow(assertDedicatedTestDatabase);
   });
 });
 

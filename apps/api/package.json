@@ -8,6 +8,7 @@
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
     "seed": "ts-node src/seed.ts",
+    "bootstrap:admin": "node --env-file-if-exists=.env dist/bootstrap-admin.js",
     "verify:persistence": "node --env-file=.env -r ts-node/register src/persistence-check.ts",
     "test:migration": "node --env-file=.env --test -r ts-node/register src/tests/migration-verification.test.ts",
     "test:security": "node --env-file=.env --test -r ts-node/register src/tests/ownership-security.test.ts",
@@ -16,6 +17,8 @@
     "test:runtime": "node --env-file=.env --test -r ts-node/register src/tests/phase2cc-runtime.test.ts",
     "test:timezone": "node --env-file=.env --test -r ts-node/register src/tests/casablanca-time.test.ts src/tests/casablanca-report.test.ts",
     "test:production-safety": "node --test -r ts-node/register src/tests/production-safety.test.ts",
+    "test:bootstrap-admin": "node --test -r ts-node/register src/tests/admin-bootstrap.test.ts",
+    "test:bootstrap-admin:integration": "node --test -r ts-node/register src/tests/admin-bootstrap.integration.test.ts",
     "test:phase1": "npm run test:migration && npm run test:security",
     "test:phase2a": "npm run test:security && npm run test:reports-auth"
   },
