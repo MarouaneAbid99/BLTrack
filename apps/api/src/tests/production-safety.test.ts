@@ -7,6 +7,7 @@ import {
   assertPersistenceCheckAllowed,
   DEDICATED_TEST_DATABASE_OVERRIDE,
 } from '../utils/database-safety';
+import { sanitizeStartupError } from '../utils/startup-error';
 import { mariaDbAdapterUrl } from '../utils/database-url';
 import { env } from '../config/env';
 
@@ -90,4 +91,52 @@ test('database adapter URL preserves credentials, path, and TLS query parameters
     'mariadb://user:password@example.invalid/bltrack?ssl=true',
   );
   assert.throws(() => mariaDbAdapterUrl('postgresql://example.invalid/bltrack'), /mysql: or mariadb:/);
+});
+
+test('startup diagnostics redact configured secrets and connection URLs', () => {
+  const databaseUrl = 'mysql://user:private-password@example.invalid:3306/defaultdb?ssl=true';
+  const bootstrapPassword = 'Temporary-Admin-Password-123!';
+  const jwtSecret = 'private-jwt-secret';
+  const error = new Error(
+    `Failed with DATABASE_URL=${databaseUrl}, password=${bootstrapPassword}, JWT_SECRET=${jwtSecret}`,
+  );
+  error.name = `DatabaseConnectionError-${bootstrapPassword}`;
+  error.stack = `DatabaseConnectionError: ${databaseUrl}\n    password: ${bootstrapPassword}`;
+
+  const diagnostic = sanitizeStartupError(error, {
+    DATABASE_URL: databaseUrl,
+    JWT_SECRET: jwtSecret,
+    BLTRACK_BOOTSTRAP_ADMIN_PASSWORD: bootstrapPassword,
+  });
+  const output = JSON.stringify(diagnostic);
+
+  assert.equal(output.includes(databaseUrl), false);
+  assert.equal(output.includes(bootstrapPassword), false);
+  assert.equal(output.includes(jwtSecret), false);
+  assert.match(output, /\[REDACTED\]/);
+
+  const unknownConnectionUrl = 'mariadb://other-user:other-password@example.invalid/defaultdb';
+  const patternDiagnostic = sanitizeStartupError(
+    new Error(`Adapter rejected ${unknownConnectionUrl}`),
+    {},
+  );
+  assert.equal(JSON.stringify(patternDiagnostic).includes(unknownConnectionUrl), false);
+  assert.match(patternDiagnostic.message, /\[REDACTED_CONNECTION_URL\]/);
+});
+
+test('startup diagnostics preserve safe error fields and stack traces', () => {
+  const error = new TypeError('Startup administrator bootstrap refused: deployed commit is not explicitly approved');
+  const diagnostic = sanitizeStartupError(error, {});
+
+  assert.equal(diagnostic.name, 'TypeError');
+  assert.equal(diagnostic.message, error.message);
+  assert.equal(typeof diagnostic.stack, 'string');
+  assert.match(diagnostic.stack!, /TypeError/);
+});
+
+test('startup diagnostics safely handle non-Error thrown values', () => {
+  assert.deepEqual(sanitizeStartupError('startup failed', {}), {
+    name: 'NonErrorThrown',
+    message: 'startup failed',
+  });
 });

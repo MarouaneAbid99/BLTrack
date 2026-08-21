@@ -2,6 +2,14 @@ import { app } from './app';
 import { env } from './config/env';
 import { runRenderStartupAdminBootstrap } from './services/startup-admin-bootstrap.service';
 import { prisma } from './utils/prisma';
+import { sanitizeStartupError } from './utils/startup-error';
+
+const logSanitizedError = (label: string, error: unknown): void => {
+  const diagnostic = sanitizeStartupError(error);
+  console.error(`${label} name: ${diagnostic.name}`);
+  console.error(`${label} message: ${diagnostic.message}`);
+  if (diagnostic.stack) console.error(`${label} stack:\n${diagnostic.stack}`);
+};
 
 const startServer = async (): Promise<void> => {
   env.validateProduction();
@@ -17,8 +25,14 @@ const startServer = async (): Promise<void> => {
   });
 };
 
-void startServer().catch(async () => {
+void startServer().catch(async (error: unknown) => {
   console.error('BLTrack API startup failed before listening');
-  await prisma.$disconnect();
+  logSanitizedError('Startup error', error);
+  try {
+    await prisma.$disconnect();
+  } catch (disconnectError) {
+    console.error('Prisma disconnect after startup failure also failed');
+    logSanitizedError('Startup cleanup error', disconnectError);
+  }
   process.exitCode = 1;
 });
