@@ -9,6 +9,7 @@ import {
 } from '../utils/database-safety';
 import { sanitizeStartupError } from '../utils/startup-error';
 import { mariaDbAdapterUrl } from '../utils/database-url';
+import { safeDatabaseConnectionConfiguration } from '../utils/database-connection-diagnostic';
 import { env } from '../config/env';
 
 const withEnvironment = (values: Record<string, string | undefined>, action: () => void): void => {
@@ -81,16 +82,49 @@ test('production environment requires database URL and JWT secret', () => {
 });
 
 test('database adapter URL preserves credentials, path, and TLS query parameters', () => {
-  const source = 'mysql://user:password@example.invalid:3307/bltrack?ssl=true&connectTimeout=9000';
+  const source = 'mysql://user:password@example.invalid:3307/bltrack?ssl=true&connectionLimit=5&connectTimeout=9000';
   assert.equal(
     mariaDbAdapterUrl(source),
-    'mariadb://user:password@example.invalid:3307/bltrack?ssl=true&connectTimeout=9000',
+    'mariadb://user:password@example.invalid:3307/bltrack?ssl=true&connectionLimit=5&connectTimeout=9000',
   );
   assert.equal(
     mariaDbAdapterUrl('mariadb://user:password@example.invalid/bltrack?ssl=true'),
     'mariadb://user:password@example.invalid/bltrack?ssl=true',
   );
   assert.throws(() => mariaDbAdapterUrl('postgresql://example.invalid/bltrack'), /mysql: or mariadb:/);
+});
+
+test('safe database diagnostics expose connection metadata without credentials', () => {
+  const databaseUrl = 'mysql://diagnostic-user:private-password@example.invalid:3307/defaultdb?ssl=true&connectionLimit=5';
+  const diagnostic = safeDatabaseConnectionConfiguration({
+    DATABASE_URL: databaseUrl,
+    NODE_EXTRA_CA_CERTS: __filename,
+  });
+  const output = JSON.stringify(diagnostic);
+
+  assert.deepEqual(diagnostic, {
+    databaseUrlPresent: true,
+    hostname: 'example.invalid',
+    port: 3307,
+    databaseName: 'defaultdb',
+    usernamePresent: true,
+    passwordPresent: true,
+    tlsEnabled: true,
+    nodeExtraCaCertsPresent: true,
+    caFilePathExists: true,
+    connectionLimit: 5,
+  });
+  assert.equal(output.includes(databaseUrl), false);
+  assert.equal(output.includes('diagnostic-user'), false);
+  assert.equal(output.includes('private-password'), false);
+});
+
+test('safe database diagnostics report the MariaDB driver default connection limit', () => {
+  const diagnostic = safeDatabaseConnectionConfiguration({
+    DATABASE_URL: 'mysql://user:password@example.invalid/defaultdb?ssl=true',
+  });
+
+  assert.equal(diagnostic.connectionLimit, 10);
 });
 
 test('startup diagnostics redact configured secrets and connection URLs', () => {

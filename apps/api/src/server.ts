@@ -1,6 +1,10 @@
 import { app } from './app';
 import { env } from './config/env';
 import { runRenderStartupAdminBootstrap } from './services/startup-admin-bootstrap.service';
+import {
+  diagnoseDatabaseConnection,
+  safeDatabaseConnectionConfiguration,
+} from './utils/database-connection-diagnostic';
 import { prisma } from './utils/prisma';
 import { sanitizeStartupError } from './utils/startup-error';
 
@@ -14,7 +18,9 @@ const logSanitizedError = (label: string, error: unknown): void => {
 const startServer = async (): Promise<void> => {
   env.validateProduction();
   const bootstrapStatus = await runRenderStartupAdminBootstrap();
-  if (bootstrapStatus === 'created') {
+  if (bootstrapStatus === 'disabled') {
+    console.log('Production administrator startup bootstrap disabled');
+  } else if (bootstrapStatus === 'created') {
     console.log('Production administrator bootstrap completed; startup mechanism is now inactive');
   } else if (bootstrapStatus === 'already-initialized') {
     console.log('Production administrator bootstrap inactive: a User already exists');
@@ -28,6 +34,8 @@ const startServer = async (): Promise<void> => {
 void startServer().catch(async (error: unknown) => {
   console.error('BLTrack API startup failed before listening');
   logSanitizedError('Startup error', error);
+  console.error(`Database configuration diagnostic: ${JSON.stringify(safeDatabaseConnectionConfiguration())}`);
+  console.error(`Database connection diagnostic: ${JSON.stringify(await diagnoseDatabaseConnection())}`);
   try {
     await prisma.$disconnect();
   } catch (disconnectError) {
