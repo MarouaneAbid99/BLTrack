@@ -17,7 +17,7 @@
     "test:runtime": "node --env-file=.env --test -r ts-node/register src/tests/phase2cc-runtime.test.ts",
     "test:timezone": "node --env-file=.env --test -r ts-node/register src/tests/casablanca-time.test.ts src/tests/casablanca-report.test.ts",
     "test:production-safety": "node --test -r ts-node/register src/tests/production-safety.test.ts",
-    "test:bootstrap-admin": "node --test -r ts-node/register src/tests/admin-bootstrap.test.ts",
+    "test:bootstrap-admin": "node --test -r ts-node/register src/tests/admin-bootstrap.test.ts src/tests/startup-admin-bootstrap.test.ts",
     "test:bootstrap-admin:integration": "node --test -r ts-node/register src/tests/admin-bootstrap.integration.test.ts",
     "test:phase1": "npm run test:migration && npm run test:security",
     "test:phase2a": "npm run test:security && npm run test:reports-auth"
